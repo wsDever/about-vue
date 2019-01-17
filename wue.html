@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, maximum-scale=1, minimum-scale=1, user-scalable=no, minimal-ui">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="format-detection" content="telephone=no" />
+  <title>WUE</title>
+</head>
+<body>
+	<div id="app">
+		<div>
+		Hello ,{ name }	
+		</div>
+		<input type="button" id="btn" value="点击" name="">
+	</div>
+</body>
+<script type="text/javascript">
+	var wComponent = {
+		ele: document.getElementById("app"),
+		data: {
+			name: "WuSun"
+		},
+		setData: function(key,val){
+			var _this = this ;
+			_this.data[key] = val ;
+			alert("页面重新渲染了哦！")
+			_this.render();
+		},
+		compile: function(str){
+			var _this = this ;
+			return str.replace(/\{.*\}/g, function(res){
+				var _res = res.replace(/\s+/g,"") ;
+				var _key = _res.substring(1,_res.length-1);
+				return _this.data[_key];
+			})
+		},
+		methods:{
+
+		},
+		ready: function(){
+			var _this = this ;
+			document.getElementById("btn").onclick = function(){
+				_this.setData("name","小吴");
+			}
+		},
+		render: function(){
+			var _this = this ;
+			if(!_this._source){
+				_this._source = _this.ele.innerHTML;
+			}
+			var template = _this.compile(_this._source);
+			_this.ele.innerHTML = template ;
+		},
+		_source:''
+	};
+	
+
+
+	function Wue(options){
+		if(this instanceof Wue)
+			this.init(options);
+	};
+	Wue.prototype.init = function(options){
+		var Wm = this;
+		Wm.opts = options;
+		Wm.initState(Wm);
+		Wm.initRender(Wm);
+		Wm.initLifecycle(Wm);
+		Wm.initEvents(Wm);
+	}
+	Wue.prototype.initState = function(wm){
+		var _des = wm.opts.component.data ;
+		var _src = wm.opts.data ;
+		for (var item in _des) {
+            _des[item] = _src[item] || _des[item];
+        }
+	}
+	Wue.prototype.initLifecycle = function(wm){
+		wm.opts.component.ready();
+	}
+	Wue.prototype.initRender = function(wm){
+		wm.opts.component.render();
+	}
+	Wue.prototype.initEvents = function(wm){
+
+	}
+	
+	new Wue({
+		component: wComponent,
+		data:{
+			name: "老吴"
+		},
+		motheds:{}
+	});
+</script>
+</html>
