@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, maximum-scale=1, minimum-scale=1, user-scalable=no, minimal-ui">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="format-detection" content="telephone=no" />
+  <title>VNODE</title>
+</head>
+<body>
+	
+</body>
+<script type="text/javascript">
+	var vNode = function(tag,props,childrens){
+		this.tagName = tag || "div" ;
+		this.props = props || {};
+		this.childrens = childrens || [];
+		this.count = 0;
+		this.key = null ;
+		this.init();
+		// ......
+	}
+	vNode.prototype.init = function(){
+		let count = 0 ;
+		var _this = this;
+		this.childrens.forEach(function(child,i){
+			if(child instanceof vNode){
+				count ++ ;
+			}else{
+				_this.childrens[i] = '' + child ;
+			}
+			count ++ ;
+		})
+		this.count = count ;
+	}
+	vNode.prototype.render = function(){
+		var _this = this ;
+		var elm = document.createElement(_this.tagName);
+		for(var prop in _this.props){
+			_this.setElmAttr(elm,prop,_this.props[prop]);
+		}
+		_this.childrens.forEach(function(child){
+			var childNode = null ;
+			if(child instanceof vNode){
+				childNode = child.render();
+			}
+			else{
+				childNode = document.createTextNode(child);
+			}
+			elm.appendChild(childNode);
+		});
+		return elm ;
+	}
+
+	vNode.prototype.setElmAttr = function(el,prop,val){
+		if(prop == "style"){
+			el.style.cssText = val ;
+		}else if(prop == "value"){
+			var elName = el.tagName.toLowerCase();
+			if(elName == 'input' || elName == 'textarea'){
+				el.value = val ;
+			}else{
+				el.setAttribute(prop,val);
+			}
+		}else{
+			el.setAttribute(prop,val);
+		}
+	}
+
+
+	var Diff = function(){
+		this.diffStatus = {
+			REPLACE:0,
+			REORDER:1,
+			PROPS:2,
+			TEXT:3
+		}
+	}
+	Diff.prototype.diff = function(oldNode,newNode){
+		var _this = this ;
+		var idx = 0;
+		var diffs = {};
+		_this.diffNode(oldNode,newNode,idx,diffs);
+		return diffs;
+	}
+	Diff.prototype.diffNode = function(oldNode,newNode,index,diffs){
+		var _this = this ;
+		var curDiff = [] ;
+		var diffInfo = null ;
+		if(newNode == null){
+			// 不用管
+		}else if(typeof oldNode == "string" && typeof newNode == "string"){
+			if(newNode != oldNode){
+				diffInfo = {
+					type : _this.diffStatus.TEXT,
+					content : newNode
+				}
+				curDiff.push(diffInfo);
+			}
+			else{
+				// 相同不用管
+			}
+		}else if(oldNode.tagName == newNode.tagName && oldNode.key == newNode.key){
+			var propsDiff = _this.diffProps(oldNode,newNode);
+			if(propsDiff){
+				diffInfo = {
+					type: _this.diffStatus.PROPS,
+					props: propsDiff
+				}
+				curDiff.push(diffInfo);
+			}
+			_this.diffChild(oldNode.childrens, newNode.childrens, index, diffs,curDiff);
+		}else{
+			diffInfo = {
+				type: _this.diffStatus.REPLACE,
+				node: newNode
+			}
+			curDiff.push(diffInfo);
+		}
+		if(curDiff.length !=0 ){
+			diffs[index] = curDiff;
+		}
+	}
+
+	Diff.prototype.diffChild = function(oldChild,newChild,index,diffs,curDiff){
+		var _this = this;
+
+		// var childDiffs = listDiff(oldChild,newChild,'key');
+		// newChild = childDiffs.children;
+		// if(childDiffs.moves.length != 0){
+		// 	var diffInfo = {
+		// 		type: _this.diffStatus.REORDER,
+		// 		moves: childDiffs.moves
+		// 	}
+		// 	diffs.push(diffInfo);
+		// }
+
+
+		var leftNode = null;
+		var curNodeIndex = index;
+		oldChild.forEach(function(child,i){
+			var curNewChild = newChild[i];
+			if(leftNode && leftNode.count){
+				curNodeIndex = curNodeIndex + leftNode.count + 1 ;
+			}else{
+				curNodeIndex = curNodeIndex + 1 ;
+			}
+			_this.diffNode(child,curNewChild,curNodeIndex,diffs);
+			leftNode = child;
+		})
+	}
+
+	Diff.prototype.diffProps = function(oldNode,newNode){
+		var num = 0;
+		var oldPrpos = oldNode.props;
+		var newProps = newNode.props;
+		var key,value;
+		var propsDiff = {};
+
+		for(key in oldPrpos){
+			value = oldPrpos[key];
+			if(value != newProps[key]){
+				num++;
+				if(newProps[key]){
+					propsDiff[key] = newProps[key];
+				}else{
+					propsDiff[key] = 'ThereIsNoThisPropInThisElement';
+				}
+			}
+		}
+		for(key  in newProps){
+			value = newProps[key];
+			if(!oldPrpos.hasOwnProperty(key)){
+				num++;
+				propsDiff[key] = newProps[key];
+			}
+		}
+		if(num == 0){
+			return null;
+		}
+		return propsDiff;
+	}
+
+	var Update = function(){
+		this.updateStatus = {
+			REPLACE:0,
+			REORDER:1,
+			PROPS:2,
+			TEXT:3
+		}
+	}
+
+	Update.prototype.update = function(tNode, diffs){
+		var _this = this;
+		var count = { idx: 0 };
+		// if(diffs[count.idx])
+		_this.setUpdates(tNode, count, diffs);
+	}
+	Update.prototype.setUpdates = function(tNode,count,diffs){
+		var _this = this;
+		var curDiff = diffs[count.idx];
+		var len = tNode.childNodes ? tNode.childNodes.length : 0;
+		for(var i=0;i<len;i++){
+			count.idx ++ ;
+			_this.setUpdates(tNode.childNodes[i],count,diffs);
+		}
+		if(curDiff){
+			_this.applyUpdates(tNode,curDiff);
+		}
+	}
+	Update.prototype.applyUpdates = function(tNode, nodeDiffs){
+		var _this = this ;
+		console.log("即将更新:"+(tNode.data || tNode.value || tNode.tagName))
+		nodeDiffs.forEach(function(curItem){
+			if(curItem.type == _this.updateStatus.REPLACE){
+				var newCurNode = null;
+				if(typeof curItem.node == 'string'){
+					newCurNode = document.createTextNode(curItem.node);
+				}else{
+					newCurNode = curItem.node.render();
+				}
+				tNode.parentNode.replaceChild(newCurNode,tNode);
+			}else if(curItem.type == _this.updateStatus.PROPS){
+				_this.setPropsUpdates(tNode, curItem.props);
+			}else if(curItem.type == _this.updateStatus.TEXT){
+				if(tNode.textContent){
+					tNode.textContent = curItem.content;
+				}else{
+					tNode.nodeValue = curItem.content;
+				}
+			}else{
+				// console.log(3);
+			}
+
+		})
+		// console.log((tNode.data || tNode.value || tNode.tagName) + "：更新完毕！");
+	}
+	Update.prototype.setPropsUpdates = function(tNode, newProps){
+		for(var key in newProps){
+			if(newProps[key] === 'ThereIsNoThisPropInThisElement'){
+				tNode.removeAttribute(key);
+			}else{
+				if(key == "style"){
+					tNode.style.cssText = newProps[key] ;
+				}else if(key == "value"){
+					var elName = tNode.tagName.toLowerCase();
+					if(elName == 'input' || elName == 'textarea'){
+						tNode.value = newProps[key] ;
+					}else{
+						tNode.setAttribute(key,newProps[key]);
+					}
+				}else{
+					tNode.setAttribute(key,newProps[key]);
+				}
+			}
+		}
+	}
+
+	var node = new vNode("div",{"id":"app","class":""},[
+		new vNode("div",{"id":"child10"},["旧的div"]),
+		new vNode("p",{"id":"child11"},["旧的P"]),
+		new vNode("ul",{"id":"child12"},[
+			new vNode("li",{"class":"li1"},["旧的li0"]),
+			new vNode("li",{"class":"li2"},["旧的li1"]),
+			new vNode("li",{"class":"li3","style":"color:red;"},["旧的li2"])
+			]),
+		new vNode("input",{"id":"input0",value:"这是旧的input"})
+		]);
+
+	var vHtml = node.render();
+	document.body.appendChild(vHtml);
+
+	var newNode = new vNode("div",{"id":"app","class":""},[
+		new vNode("div",{"id":"child10"},["新的div"]),
+		new vNode("p",{"id":"child11"},["新的p"]),
+		new vNode("ul",{"id":"child12"},[
+			new vNode("li",{"class":"li1"},["新的li0"]),
+			new vNode("li",{"class":"li2"},["新的li1"]),
+			new vNode("li",{"class":"li3"},["新的li2"])
+			]),
+		new vNode("input",{"id":"input0",value:"这是新的input,颜色是红色的","style":"color:red"}),
+		new vNode("input",{"id":"input2",value:"这是另一个input"})
+		]);
+	var ps = new Diff().diff(node,newNode);
+	new Update().update(vHtml,ps);
+</script>
+</html>

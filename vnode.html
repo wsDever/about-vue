@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-cn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, maximum-scale=1, minimum-scale=1, user-scalable=no, minimal-ui">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="format-detection" content="telephone=no" />
+  <title>VNODE</title>
+</head>
+<body>
+	
+</body>
+<script type="text/javascript">
+	var vNode = function(tag,props,childrens){
+		this.tagName = tag ;
+		this.props = props ;
+		this.childrens = childrens ;
+		// ......
+	}
+	vNode.prototype.render = function(){
+		var _this = this ;
+		var elm = document.createElement(_this.tagName);
+		for(var prop in _this.props){
+			_this.setElmAttr(elm,prop,_this.props[prop]);
+		}
+		_this.childrens.forEach(function(child){
+			var childNode = null ;
+			if(child instanceof vNode)
+				childNode = child.render();
+			else
+				childNode = document.createTextNode(child);
+			elm.appendChild(childNode);
+		});
+		return elm ;
+	}
+
+	vNode.prototype.setElmAttr = function(el,prop,val){
+		if(prop == "style"){
+			el.style.cssText = val ;
+		}else if(prop == "value"){
+			var elName = el.tagName.toLowerCase();
+			if(elName == 'input' || elName == 'textarea'){
+				el.value = val ;
+			}else{
+				el.setAttribute(prop,val);
+			}
+		}else{
+			el.setAttribute(prop,val);
+		}
+	}
+
+
+	var node = new vNode("div",{"id":"app","class":""},[
+		new vNode("div",{"id":"child10"},["这是第一个结点div"]),
+		new vNode("p",{"id":"child11"},["这是第二个结点p"]),
+		new vNode("ul",{"id":"child12"},[
+			new vNode("li",{"class":"li1"},["第一个li"]),
+			new vNode("li",{"class":"li2"},["第二个li"]),
+			new vNode("li",{"class":"li3"},["第三个li"]),
+			]),
+		]);
+	var vHtml = node.render();
+	document.body.appendChild(vHtml);
+</script>
+</html>
